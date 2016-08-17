@@ -1,0 +1,172 @@
+﻿@{
+    Layout = "_Layout";
+    var title = "Customizing FormatFilter behavior in ASP.NET Core MVC 1.0";
+
+    ViewBag.Title = title;
+    ViewBag.HideBackLink = false;
+}
+<md>
+# @title
+
+When building HTTP APIs with ASP.NET Core MVC , the framework allows you to use *FormatFilter* to let the calling client override any content negotiation that might have happened on the server side.
+
+This way, the client can for example force the return data to be JSON or CSV or any other format suitable (as long as the server supports it, of course).
+
+The built in mechanism (out of the box version of *FormatFilter*) is a little limited, so let's have a look at how you can extend and customize its behavior.
+<!--more-->
+### A little FormatFilter background
+
+I [already blogged about FormatFilter](http://www.strathweb.com/2016/02/formatfilter-and-mediatypemappings-in-asp-net-core-1-0-mvc/) a few months ago.
+
+As a reminder, *FormatFilter* allows you to use querystring value or a route value to override content negotiation.
+
+In the example from the old blog post:
+
+```
+[FormatFilter]
+public class BooksController : Controller
+{
+    [Route("[controller]/{id}.{format?}")]
+    public Book GetProduct(int id)
+    {
+        return new Book { Id = id, Title = "foo"};
+    }
+}
+```
+
+In this case, format filter would allow us to request this resource the following way:
+
+```
+GET http://my.api.com/books/1
+GET http://my.api.com/books/1?format=xml
+GET http://my.api.com/books/1.xml
+```
+
+In the first example, the content negotiation process would run normally, so the server would consider the `Accept` header of the request and determine the response media type that way. 
+
+In the latter two examples, the presence of *FormatFilter* on the controller (it could also be applied on the action), would force the response to pick up a formatter from the *FormatterMappings*, using the *xml* key.
+
+At this point you may ask what are formatter mappings - again this was covered [in the old post](http://www.strathweb.com/2016/02/formatfilter-and-mediatypemappings-in-asp-net-core-1-0-mvc/), but in short, formatter mappings let you bind a specific media type to a specific string value. For example:
+
+    public void ConfigureServices(IServiceCollection services)
+    {
+        var mvcBuilder = services.AddMvc(opt =>
+        {
+            opt.FormatterMappings.SetMediaTypeMappingForFormat("xml", new MediaTypeHeaderValue("application/xml"));
+        });
+    }
+    
+This sample configuration ensures that if the client passes *xml* as the *format* key - in the route data or in querystring, the MVC will always respond with *application/xml* media type. Remember it's necessary to decorate a controller/action with *[FormatFilter]* - setting the formatter mappings will not have any effect without that.
+
+Out of the box, *FormatFilter* has got both the *format* key, and the fact that it looks at querystring and route data, hardcoded - meaning you cannot use a different word and you cannot obtain the format in any other way.
+
+This is where the customization process kicks in.
+
+### Customizing FormatFilter behavior
+
+As a interesting (useless?) piece of trivia, I may mention, that the fact that we can customize the *FormatFilter* at all is thanks to this monumental 8-character [pull request](https://github.com/aspnet/Mvc/pull/4483) I sent to MVC a while ago.
+
+With this change, we can now subclass *FormatFilter* and introduce our custom logic.
+
+Let's imagine we want to use *dataType* key instead of *format* and we would like to allow the client to also pass this information in the header - instead of just route data and query string.
+
+This is shown in the next. First let's define some extension methods to extra route data, query string and header values from *ActionContext*.
+
+    public static class HttpRequestExtensions
+    {
+        public static string GetValueFromRouteData(this ActionContext context, string key)
+        {
+            object value;
+            if (context.RouteData.Values.TryGetValue(key, out value))
+            {
+                var routeValue = value?.ToString();
+                return string.IsNullOrEmpty(routeValue) ? null : routeValue;
+            }
+
+            return null;
+        }
+
+        public static string GetValueFromQueryString(this ActionContext context, string key)
+        {
+            StringValues queryValue;
+            if (context.HttpContext.Request.Query.TryGetValue(key, out queryValue))
+            {
+                return queryValue.ToString();
+            }
+
+            return null;
+        }
+
+        public static string GetValueFromHeader(this ActionContext context, string key)
+        {
+            StringValues headerValue;
+            if (context.HttpContext.Request.Headers.TryGetValue(key, out headerValue))
+            {
+                return headerValue.ToString();
+            }
+
+            return null;
+        }
+    }
+
+Now we can implement our custom filter.
+
+    public class MyFormatFilter : FormatFilter
+    {
+        const string key = "DataType";
+   
+        public MyFormatFilter(IOptions<MvcOptions> options) : base(options)
+        {
+        }
+
+        public override string GetFormat(ActionContext context)
+        {
+            var format = context.GetValueFromHeader(key) ?? context.GetValueFromRouteData(key) ?? context.GetValueFromQueryString(key);
+            return format;
+        }
+    }
+
+Which can then be registered in the ASP.NET services in place of the default implementation.
+
+        public void ConfigureServices(IServiceCollection services)
+        {
+            services.AddMvc(opt =>
+            {
+               opt.FormatterMappings.SetMediaTypeMappingForFormat("xml", new MediaTypeHeaderValue("application/xml"));
+            });
+            services.Replace(ServiceDescriptor.Singleton<FormatFilter, MyFormatFilter>());
+        }
+
+If we now look back at the original sample controller we had, we can access the book resource in XML in the following ways:
+
+
+```
+GET http://my.api.com/books/1?DataType=xml
+GET http://my.api.com/books/1.xml
+
+GET http://my.api.com/books/1
+DataType: xml  /* this is a header */
+```
+
+Of course you can customize it even further. For example, perhaps you would like to override media type per user? This is entirely possible:
+
+    public class MyFormatFilter : FormatFilter
+    {
+        const string key = "DataType";
+   
+        public MyFormatFilter(IOptions<MvcOptions> options) : base(options)
+        {
+        }
+
+        public override string GetFormat(ActionContext context)
+        {
+            ClaimsPrincipal user = context.HttpContext.User; 
+            
+            // set up format based on user identity here 
+            // i.e. based on your user's profile
+            return format;
+        }
+    }
+
+There are many other customization scenarios here. Another good example is that you could now register *FormatFilter* globally - and use the custom *FormatFilter* to mute its behavior in the controllers/actions you do not wish it to be applied.
+</md>

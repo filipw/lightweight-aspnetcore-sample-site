@@ -1,0 +1,36 @@
+﻿@{
+    Layout = "_Layout";
+    var title = $"Announcing WebApiContrib for ASP.NET Core!";
+
+    ViewBag.Title = title;
+    ViewBag.HideBackLink = false;
+}
+<md>
+# @title
+
+In the past, a [bunch of us](https://github.com/orgs/WebApiContrib/people) from the ASP.NET Web API community worked together on a WebApiContrib project (or really, *projects*, cause there were many of them!).
+
+The idea was to provide an easy to use platform, a one stop place for community contributions for ASP.NET Web API - both larger add ons, such as HTML/Razor support for Web API, as well as smaller things like i.e. reusable filters or even helper methods. This worked extremely well - [WebApiContrib packages](https://www.nuget.org/packages?q=Tags%3A"WebApiContrib") were downloaded over 500k times on Nuget, and a nice community has emerged around the project on [Github](https://github.com/WebApiContrib).
+
+Recently, we decided to restart the project, this time focusing on ASP.NET Core. Since the "brand" has caught on in the community and is fairly recognizable, we just called it [WebApiContrib.Core](https://github.com/WebApiContrib/WebAPIContrib.Core).
+
+<!--more-->
+There is already a bunch of things there:
+
+- Main package containing i.e. *GlobalRoutePrefixConvention*, *FromBodyApplicationModelConvention* or *OverridableFilterProvider*
+- BSON formatter
+- CSV formatter
+- JSONP formatter
+- PlainText formatter
+- Markdown tag helper
+- WebPages functionality (Razor pages without controllers!)
+- Confitional requests support based on RFC-7232
+
+And it's growing quickly. There are several packages pushed to Nuget already too.
+
+It would be wonderful if you would like to particpiate in this community effort - I am sure alomst everyone working on ASP.NET Core would have something interesting to contribute.
+
+If you would like to join the conversation, you can use [this link](https://webapicontrib.azurewebsites.net) to join the slack channel. The repo is [located here on Github](https://github.com/WebApiContrib/WebAPIContrib.Core).
+
+Thanks!
+</md>
